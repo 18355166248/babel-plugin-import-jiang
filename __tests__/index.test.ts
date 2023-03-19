@@ -1,7 +1,8 @@
 import { transform } from "babel-core";
 import plugin from "../src";
 
-var example = `import { Button } from 'antd'`;
+var example = `import { Button } from 'antd';
+Button()`;
 
 describe("index", () => {
   it("works", () => {
