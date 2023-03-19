@@ -1,3 +1,5 @@
+import { addDefault } from "@babel/helper-module-import";
+
 export default class Plugin {
   libraryName: string;
   libraryDirectory: string;
@@ -22,10 +24,10 @@ export default class Plugin {
   }
 
   ProgramEnter(path, state) {
-    console.log("ProgramEnter");
     const pluginState = this.getPluginState(state);
     pluginState.specifiers = Object.create(null);
     pluginState.pateToRemove = [];
+    pluginState.selectedMethods = [];
   }
 
   ImportDeclaration(path, state) {
@@ -49,6 +51,29 @@ export default class Plugin {
   }
 
   CallExpression(path, state) {
-    console.log("CallExpression-state", state);
+    const { node } = path;
+    const file = path && path.hub && path.hub.file;
+    const pluginState = this.getPluginState(state);
+
+    node.arguments.map((arg) => {
+      const { name } = arg;
+
+      if (
+        pluginState.specifiers[name] &&
+        path.scope.hasBinding(name) &&
+        path.scope.getBinding(name).path.type === "ImportSpecifier"
+      ) {
+        this.importMethod(pluginState.specifiers[name], file, pluginState);
+      }
+    });
+  }
+
+  importMethod(methodName, file, pluginState) {
+    if (!pluginState.selectedMethods[methodName]) {
+      console.log("methodName", methodName);
+      addDefault(file.path)
+    }
+
+    return pluginState.selectedMethods[methodName];
   }
 }
