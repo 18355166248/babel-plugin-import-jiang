@@ -1,6 +1,10 @@
-import Plugin from "./Plugin";
+import Plugin, { Opts_Props } from "./Plugin";
 
-export default function ({ types }) {
+export type Partial_Opts_Props = Omit<Partial<Opts_Props>, "libraryName"> & {
+  libraryName: string;
+};
+
+export default function({ types }) {
   let plugins: any = null;
 
   function applyInstance(method, args, context) {
@@ -13,13 +17,14 @@ export default function ({ types }) {
 
   const Program = {
     // opts 是 babel 配置 plugin 的第二个参数
-    enter(path, { opts = {} }: any) {
+    enter(path, { opts }: { opts: Partial_Opts_Props }) {
       if (!plugins) {
         plugins = [
           new Plugin(
             opts.libraryName,
             opts.libraryDirectory,
             opts.style,
+            opts.customNameCB,
             types
           ),
         ];
@@ -27,7 +32,9 @@ export default function ({ types }) {
 
       applyInstance("ProgramEnter", arguments, this);
     },
-    exit() {},
+    exit() {
+      applyInstance("ProgramExit", arguments, this);
+    },
   };
   // babel会自动触发的方法
   const methods = ["ImportDeclaration", "CallExpression"];

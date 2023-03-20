@@ -1,16 +1,38 @@
-import { addDefault } from "@babel/helper-module-import";
+import { addDefault, addSideEffect } from "@babel/helper-module-imports";
+import { windowPath } from "./utls";
+import { join } from "path";
 
-export default class Plugin {
+export interface Opts_Props {
+  libraryName: string;
+  libraryDirectory?: string;
+  style: boolean | "css";
+  types: any;
+  customNameCB: ((name: string, file: any) => string) | undefined;
+  index?: number;
+}
+
+export default class Plugin implements Opts_Props {
   libraryName: string;
   libraryDirectory: string;
-  style: boolean;
+  style: boolean | "css";
   pluginStateKey: string;
   types: any;
-  constructor(libraryName, libraryDirectory, style, types, index = 0) {
+  customNameCB: ((name: string, file: any) => string) | undefined;
+  index?: number | undefined;
+
+  constructor(
+    libraryName: string,
+    libraryDirectory: string | undefined,
+    style: boolean | "css" | undefined,
+    customNameCB: ((name: string, file: any) => string) | undefined,
+    types: any,
+    index = 0
+  ) {
     this.libraryName = libraryName;
     this.libraryDirectory =
       typeof libraryDirectory === "undefined" ? "lib" : libraryDirectory;
     this.style = style || false;
+    this.customNameCB = customNameCB;
     this.types = types;
     this.pluginStateKey = `pluginStateKey${index}`;
   }
@@ -26,8 +48,14 @@ export default class Plugin {
   ProgramEnter(path, state) {
     const pluginState = this.getPluginState(state);
     pluginState.specifiers = Object.create(null);
-    pluginState.pateToRemove = [];
-    pluginState.selectedMethods = [];
+    pluginState.pateToRemove = []; // 待删除节点列表
+    pluginState.selectedMethods = []; // 已选中(格式化)节点列表
+  }
+
+  ProgramExit(path, state) {
+    this.getPluginState(state).pateToRemove.forEach(
+      (p) => !p.removed && p.remove()
+    );
   }
 
   ImportDeclaration(path, state) {
@@ -55,7 +83,7 @@ export default class Plugin {
     const file = path && path.hub && path.hub.file;
     const pluginState = this.getPluginState(state);
 
-    node.arguments.map((arg) => {
+    node.arguments = node.arguments.map((arg) => {
       const { name } = arg;
 
       if (
@@ -65,15 +93,31 @@ export default class Plugin {
       ) {
         this.importMethod(pluginState.specifiers[name], file, pluginState);
       }
+
+      return arg;
     });
   }
 
   importMethod(methodName, file, pluginState) {
+    const { customNameCB, libraryDirectory, libraryName, style } = this;
     if (!pluginState.selectedMethods[methodName]) {
-      console.log("methodName", methodName);
-      addDefault(file.path)
+      const path = windowPath(
+        customNameCB
+          ? customNameCB(methodName, file)
+          : windowPath(join(libraryName, libraryDirectory, methodName))
+      );
+      // 防止重复添加 复用节点
+      pluginState.selectedMethods[methodName] = addDefault(file.path, path, {
+        nameHint: methodName,
+      });
+
+      if (style === true) {
+        addSideEffect(file.path, `${path}/style`);
+      } else if (style === "css") {
+        addSideEffect(file.path, `${path}/style/css`);
+      }
     }
 
-    return pluginState.selectedMethods[methodName];
+    return { ...pluginState.selectedMethods[methodName] };
   }
 }
