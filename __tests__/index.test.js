@@ -1,4 +1,4 @@
-import { transformFileSync, transform } from "babel-core";
+import { transformFileSync } from "@babel/core";
 import plugin from "../src";
 import { join } from "path";
 import { readFileSync, readdirSync } from "fs";
